@@ -2,7 +2,7 @@ Flask[async]
 requests
 aiohttp
 pycryptodome
-protobuf
+protobuf==4.23.4
 protobuf_decoder
 googleapis-common-protos
 Werkzeug
