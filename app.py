@@ -34,7 +34,7 @@ UID_GENERATOR_DESCRIPTOR.message_type[0].field.add(
 pool.Add(UID_GENERATOR_DESCRIPTOR)
 
 factory = _message_factory.MessageFactory(pool)
-uid_generator = factory.GetPrototype(pool.FindMessageTypeByName('uid_generator'))
+uid_generator = factory.GetMessageClass(pool.FindMessageTypeByName('uid_generator'))
 
 # ---- Minimal protobuf emulation for zitado_pb2 ----
 
@@ -141,7 +141,7 @@ def get_jwt_token(region):
         return None
     return response.json()
 
-@app.route('/player', methods=['GET'])
+@app.route('/player-info', methods=['GET'])
 def main():
     uid = request.args.get('uid')
     region = request.args.get('region')
