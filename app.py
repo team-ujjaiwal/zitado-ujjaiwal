@@ -3,8 +3,7 @@ import requests
 import binascii
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
-from google.protobuf import message
-from google.protobuf import descriptor_pool, descriptor_pb2, symbol_database
+from google.protobuf import descriptor_pool, descriptor_pb2, message_factory
 
 app = Flask(__name__)
 
@@ -12,31 +11,39 @@ app = Flask(__name__)
 key = "Yg&tc%DEuh6%Zc^8"
 iv = "6oyZDr22E3ychjM%"
 
-# ---- Minimal protobuf emulation for uid_generator_pb2 ----
-# Normally, you import uid_generator_pb2 compiled from .proto.
-# Here we define a minimal protobuf message class for uid_generator.
+# ---- Protobuf dynamic message definitions ----
 
-from google.protobuf import descriptor as _descriptor
-from google.protobuf import message_factory as _message_factory
-from google.protobuf import descriptor_pool as _descriptor_pool
+pool = descriptor_pool.Default()
 
-pool = _descriptor_pool.Default()
-
+# Define uid_generator message descriptor
 UID_GENERATOR_DESCRIPTOR = descriptor_pb2.FileDescriptorProto()
 UID_GENERATOR_DESCRIPTOR.name = 'uid_generator.proto'
 UID_GENERATOR_DESCRIPTOR.package = ''
-UID_GENERATOR_DESCRIPTOR.message_type.add().name = 'uid_generator'
-UID_GENERATOR_DESCRIPTOR.message_type[0].field.add(
-    name='akiru_', number=1, type=3, label=1)  # int64, optional
-UID_GENERATOR_DESCRIPTOR.message_type[0].field.add(
-    name='aditya', number=2, type=3, label=1)  # int64, optional
+
+msg_type = UID_GENERATOR_DESCRIPTOR.message_type.add()
+msg_type.name = 'uid_generator'
+
+field_akiru = msg_type.field.add()
+field_akiru.name = 'akiru_'
+field_akiru.number = 1
+field_akiru.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+field_akiru.type = descriptor_pb2.FieldDescriptorProto.TYPE_INT64
+
+field_aditya = msg_type.field.add()
+field_aditya.name = 'aditya'
+field_aditya.number = 2
+field_aditya.label = descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL
+field_aditya.type = descriptor_pb2.FieldDescriptorProto.TYPE_INT64
 
 pool.Add(UID_GENERATOR_DESCRIPTOR)
 
-factory = _message_factory.MessageFactory(pool)
-uid_generator = factory.GetMessageClass(pool.FindMessageTypeByName('uid_generator'))
+factory = message_factory.MessageFactory(pool)
 
-# ---- Minimal protobuf emulation for zitado_pb2 ----
+uid_generator_descriptor = pool.FindMessageTypeByName('uid_generator')
+uid_generator = factory.GetPrototype(uid_generator_descriptor)
+
+
+# Define zitado.proto messages
 
 ZITADO_DESCRIPTOR = descriptor_pb2.FileDescriptorProto()
 ZITADO_DESCRIPTOR.name = 'zitado.proto'
@@ -45,76 +52,67 @@ ZITADO_DESCRIPTOR.package = ''
 # clan message
 clan_msg = ZITADO_DESCRIPTOR.message_type.add()
 clan_msg.name = 'clan'
-clan_msg.field.add(name='clanid', number=1, type=13, label=1)       # uint32
-clan_msg.field.add(name='clanname', number=2, type=9, label=1)      # string
-clan_msg.field.add(name='guildlevel', number=4, type=13, label=1)   # uint32
-clan_msg.field.add(name='livemember', number=5, type=13, label=1)   # uint32
+clan_msg.field.add(name='clanid', number=1, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+clan_msg.field.add(name='clanname', number=2, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
+clan_msg.field.add(name='guildlevel', number=4, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+clan_msg.field.add(name='livemember', number=5, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
 
 # adminclan message
 adminclan_msg = ZITADO_DESCRIPTOR.message_type.add()
 adminclan_msg.name = 'adminclan'
-adminclan_msg.field.add(name='idadmin', number=1, type=13, label=1)      # uint32
-adminclan_msg.field.add(name='adminname', number=3, type=9, label=1)     # string
-adminclan_msg.field.add(name='level', number=6, type=13, label=1)         # uint32
-adminclan_msg.field.add(name='exp', number=7, type=13, label=1)           # uint32
-adminclan_msg.field.add(name='brpoint', number=15, type=13, label=1)      # uint32
-adminclan_msg.field.add(name='cspoint', number=31, type=13, label=1)      # uint32
-adminclan_msg.field.add(name='lastlogin', number=24, type=13, label=1)    # uint32
+adminclan_msg.field.add(name='idadmin', number=1, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+adminclan_msg.field.add(name='adminname', number=3, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
+adminclan_msg.field.add(name='level', number=6, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+adminclan_msg.field.add(name='exp', number=7, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+adminclan_msg.field.add(name='brpoint', number=15, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+adminclan_msg.field.add(name='cspoint', number=31, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+adminclan_msg.field.add(name='lastlogin', number=24, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
 
 # info message
 info_msg = ZITADO_DESCRIPTOR.message_type.add()
 info_msg.name = 'info'
-info_msg.field.add(name='username', number=3, type=9, label=1)       # string
-info_msg.field.add(name='region', number=5, type=9, label=1)         # string
-info_msg.field.add(name='level', number=6, type=13, label=1)         # uint32
-info_msg.field.add(name='Exp', number=7, type=13, label=1)            # uint32
-info_msg.field.add(name='banner', number=11, type=13, label=1)       # uint32
-info_msg.field.add(name='avatar', number=12, type=13, label=1)       # uint32
-info_msg.field.add(name='likes', number=21, type=13, label=1)        # uint32
-info_msg.field.add(name='BadgeCount', number=18, type=13, label=1)   # uint32
-info_msg.field.add(name='lastlogin', number=24, type=13, label=1)    # uint32
-info_msg.field.add(name='createat', number=44, type=13, label=1)     # uint32
-info_msg.field.add(name='brrankpoint', number=35, type=13, label=1)  # uint32
-info_msg.field.add(name='brrankscore', number=15, type=13, label=1)  # uint32
-info_msg.field.add(name='csrankpoint', number=30, type=13, label=1)  # uint32
-info_msg.field.add(name='csrankscore', number=31, type=13, label=1)  # uint32
-info_msg.field.add(name='OB', number=50, type=9, label=1)             # string
+info_msg.field.add(name='username', number=3, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
+info_msg.field.add(name='region', number=5, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
+info_msg.field.add(name='level', number=6, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='Exp', number=7, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='banner', number=11, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='avatar', number=12, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='likes', number=21, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='BadgeCount', number=18, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='lastlogin', number=24, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='createat', number=44, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='brrankpoint', number=35, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='brrankscore', number=15, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='csrankpoint', number=30, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='csrankscore', number=31, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_UINT32)
+info_msg.field.add(name='OB', number=50, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
 
-# bio message (for bio info)
+# bio message
 bio_msg = ZITADO_DESCRIPTOR.message_type.add()
 bio_msg.name = 'bio'
-bio_msg.field.add(name='bio', number=9, type=9, label=1)  # string
+bio_msg.field.add(name='bio', number=9, label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL, type=descriptor_pb2.FieldDescriptorProto.TYPE_STRING)
 
 # users message
 users_msg = ZITADO_DESCRIPTOR.message_type.add()
 users_msg.name = 'Users'
-users_msg.field.add(name='claninfo', number=6, type=11, label=3, type_name='clan')
-users_msg.field.add(name='basicinfo', number=1, type=11, label=3, type_name='info')
-users_msg.field.add(name='clanadmin', number=7, type=11, label=3, type_name='adminclan')
-users_msg.field.add(name='bioinfo', number=9, type=11, label=3, type_name='bio')
+users_msg.field.add(name='claninfo', number=6, label=descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED, type=descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE, type_name='clan')
+users_msg.field.add(name='basicinfo', number=1, label=descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED, type=descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE, type_name='info')
+users_msg.field.add(name='clanadmin', number=7, label=descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED, type=descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE, type_name='adminclan')
+users_msg.field.add(name='bioinfo', number=9, label=descriptor_pb2.FieldDescriptorProto.LABEL_REPEATED, type=descriptor_pb2.FieldDescriptorProto.TYPE_MESSAGE, type_name='bio')
 
 pool.Add(ZITADO_DESCRIPTOR)
-users_class = factory.GetPrototype(pool.FindMessageTypeByName('Users'))
+
+users_descriptor = pool.FindMessageTypeByName('Users')
+users_class = factory.GetPrototype(users_descriptor)
+
 
 # ---- Helper functions ----
 
-def hex_to_bytes(hex_string):
-    return bytes.fromhex(hex_string)
-
 def create_protobuf(akiru_, aditya):
-    message = uid_generator()
-    message.akiru_ = akiru_
-    message.aditya = aditya
-    return message.SerializeToString()
-
-def protobuf_to_hex(protobuf_data):
-    return binascii.hexlify(protobuf_data).decode()
-
-def decode_hex(hex_string):
-    byte_data = binascii.unhexlify(hex_string.replace(' ', ''))
-    users = users_class()
-    users.ParseFromString(byte_data)
-    return users
+    msg = uid_generator()
+    msg.akiru_ = akiru_
+    msg.aditya = aditya
+    return msg.SerializeToString()
 
 def encrypt_aes(hex_data, key, iv):
     key_bytes = key.encode()[:16]
@@ -123,6 +121,12 @@ def encrypt_aes(hex_data, key, iv):
     padded_data = pad(bytes.fromhex(hex_data), AES.block_size)
     encrypted_data = cipher.encrypt(padded_data)
     return binascii.hexlify(encrypted_data).decode()
+
+def decode_hex(hex_string):
+    byte_data = binascii.unhexlify(hex_string)
+    users = users_class()
+    users.ParseFromString(byte_data)
+    return users
 
 def get_credentials(region):
     region = region.upper()
@@ -140,6 +144,7 @@ def get_jwt_token(region):
     if response.status_code != 200:
         return None
     return response.json()
+
 
 @app.route('/player-info', methods=['GET'])
 def main():
