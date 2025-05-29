@@ -3,7 +3,6 @@ from Crypto.Util.Padding import pad
 import binascii
 from flask import Flask, request, jsonify
 import requests
-import random
 import uid_generator_pb2
 from zitado_pb2 import Users
 from secret import key, iv
@@ -70,8 +69,8 @@ def main():
     if not jwt_info or 'token' not in jwt_info:
         return jsonify({"error": "Failed to fetch JWT token"}), 500
 
-    api = jwt_info['api']
     token = jwt_info['token']
+    api = jwt_info.get['api']
 
     protobuf_data = create_protobuf(saturn_, 1)
     hex_data = protobuf_to_hex(protobuf_data)
