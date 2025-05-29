@@ -10,8 +10,6 @@ from secret import key, iv
 
 app = Flask(__name__)
 
-FALLBACK_API_URL = "https://loginbp.ggblueshark.com/MajorLogin"
-
 def hex_to_bytes(hex_string):
     return bytes.fromhex(hex_string)
 
@@ -55,9 +53,6 @@ def get_jwt_token(region):
         return None
     return response.json()
 
-def send_request(api_url, encrypted_hex, headers):
-    return requests.post(api_url, headers=headers, data=bytes.fromhex(encrypted_hex))
-
 @app.route('/player-info', methods=['GET'])
 def main():
     uid = request.args.get('uid')
@@ -75,7 +70,7 @@ def main():
     if not jwt_info or 'token' not in jwt_info:
         return jsonify({"error": "Failed to fetch JWT token"}), 500
 
-    api = jwt_info['api']
+    api = jwt_info['serverUrl']
     token = jwt_info['token']
 
     protobuf_data = create_protobuf(saturn_, 1)
@@ -93,17 +88,11 @@ def main():
         'Content-Type': 'application/x-www-form-urlencoded',
     }
 
-    # 🔄 Try main API first
     try:
-        response = send_request(f"{api}/GetPlayerPersonalShow", encrypted_hex, headers)
+        response = requests.post(f"{api}/GetPlayerPersonalShow", headers=headers, data=bytes.fromhex(encrypted_hex))
         response.raise_for_status()
     except requests.RequestException:
-        # 🔁 Use fallback API if main fails
-        try:
-            response = send_request(FALLBACK_API_URL, encrypted_hex, headers)
-            response.raise_for_status()
-        except requests.RequestException:
-            return jsonify({"error": "Failed to contact game server (both primary and fallback)"}), 502
+        return jsonify({"error": "Failed to contact game server"}), 502
 
     hex_response = response.content.hex()
 
