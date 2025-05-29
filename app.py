@@ -127,6 +127,9 @@ def decode_hex(hex_string):
     users = users_class()
     users.ParseFromString(byte_data)
     return users
+    
+def protobuf_to_hex(message):
+    return message.SerializeToString().hex()
 
 def get_credentials(region):
     region = region.upper()
