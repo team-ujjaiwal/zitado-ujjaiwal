@@ -1,94 +1,20 @@
-from flask import Flask, request, jsonify
-import requests
-import binascii
 from Crypto.Cipher import AES
 from Crypto.Util.Padding import pad
-from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
+import binascii
+from flask import Flask, request, jsonify
+import requests
+import random
+import uid_generator_pb2
+from zitado_pb2 import Users
+from secret import key, iv
 
 app = Flask(__name__)
 
-# ---- secret.py contents ----
-key = "Yg&tc%DEuh6%Zc^8"
-iv = "6oyZDr22E3ychjM%"
-
-# ---- Protobuf descriptors ----
-pool = descriptor_pool.Default()
-factory = message_factory.MessageFactory(pool)
-
-# uid_generator.proto
-uid_generator_fd = descriptor_pb2.FileDescriptorProto()
-uid_generator_fd.name = 'uid_generator.proto'
-uid_generator_msg = uid_generator_fd.message_type.add()
-uid_generator_msg.name = 'uid_generator'
-uid_generator_msg.field.add(name='akiru_', number=1, type=3, label=1)  # int64
-uid_generator_msg.field.add(name='aditya', number=2, type=3, label=1)  # int64
-pool.Add(uid_generator_fd)
-uid_generator_descriptor = pool.FindMessageTypeByName('uid_generator')
-uid_generator_class = factory.GetMessageClass(uid_generator_descriptor)
-
-# zitado.proto
-zitado_fd = descriptor_pb2.FileDescriptorProto()
-zitado_fd.name = 'zitado.proto'
-
-# clan message
-clan_msg = zitado_fd.message_type.add()
-clan_msg.name = 'clan'
-clan_msg.field.add(name='clanid', number=1, type=13, label=1)       # uint32
-clan_msg.field.add(name='clanname', number=2, type=9, label=1)      # string
-clan_msg.field.add(name='guildlevel', number=4, type=13, label=1)   # uint32
-clan_msg.field.add(name='livemember', number=5, type=13, label=1)   # uint32
-
-# adminclan message
-adminclan_msg = zitado_fd.message_type.add()
-adminclan_msg.name = 'adminclan'
-adminclan_msg.field.add(name='idadmin', number=1, type=13, label=1)      # uint32
-adminclan_msg.field.add(name='adminname', number=3, type=9, label=1)     # string
-adminclan_msg.field.add(name='level', number=6, type=13, label=1)        # uint32
-adminclan_msg.field.add(name='exp', number=7, type=13, label=1)          # uint32
-adminclan_msg.field.add(name='brpoint', number=15, type=13, label=1)     # uint32
-adminclan_msg.field.add(name='cspoint', number=31, type=13, label=1)     # uint32
-adminclan_msg.field.add(name='lastlogin', number=24, type=13, label=1)   # uint32
-
-# info message
-info_msg = zitado_fd.message_type.add()
-info_msg.name = 'info'
-info_msg.field.add(name='username', number=3, type=9, label=1)       # string
-info_msg.field.add(name='region', number=5, type=9, label=1)         # string
-info_msg.field.add(name='level', number=6, type=13, label=1)         # uint32
-info_msg.field.add(name='Exp', number=7, type=13, label=1)           # uint32
-info_msg.field.add(name='banner', number=11, type=13, label=1)       # uint32
-info_msg.field.add(name='avatar', number=12, type=13, label=1)       # uint32
-info_msg.field.add(name='likes', number=21, type=13, label=1)        # uint32
-info_msg.field.add(name='BadgeCount', number=18, type=13, label=1)   # uint32
-info_msg.field.add(name='lastlogin', number=24, type=13, label=1)    # uint32
-info_msg.field.add(name='createat', number=44, type=13, label=1)     # uint32
-info_msg.field.add(name='brrankpoint', number=35, type=13, label=1)  # uint32
-info_msg.field.add(name='brrankscore', number=15, type=13, label=1)  # uint32
-info_msg.field.add(name='csrankpoint', number=30, type=13, label=1)  # uint32
-info_msg.field.add(name='csrankscore', number=31, type=13, label=1)  # uint32
-info_msg.field.add(name='OB', number=50, type=9, label=1)            # string
-
-# bio message
-bio_msg = zitado_fd.message_type.add()
-bio_msg.name = 'bio'
-bio_msg.field.add(name='bio', number=9, type=9, label=1)  # string
-
-# Users message
-users_msg = zitado_fd.message_type.add()
-users_msg.name = 'Users'
-users_msg.field.add(name='claninfo', number=6, type=11, label=3, type_name='clan')
-users_msg.field.add(name='basicinfo', number=1, type=11, label=3, type_name='info')
-users_msg.field.add(name='clanadmin', number=7, type=11, label=3, type_name='adminclan')
-users_msg.field.add(name='bioinfo', number=9, type=11, label=3, type_name='bio')
-
-pool.Add(zitado_fd)
-users_descriptor = pool.FindMessageTypeByName('Users')
-users_class = factory.GetMessageClass(users_descriptor)
-
-# ---- Helper functions ----
+def hex_to_bytes(hex_string):
+    return bytes.fromhex(hex_string)
 
 def create_protobuf(akiru_, aditya):
-    message = uid_generator_class()
+    message = uid_generator_pb2.uid_generator()
     message.akiru_ = akiru_
     message.aditya = aditya
     return message.SerializeToString()
@@ -97,15 +23,15 @@ def protobuf_to_hex(protobuf_data):
     return binascii.hexlify(protobuf_data).decode()
 
 def decode_hex(hex_string):
-    byte_data = binascii.unhexlify(hex_string)
-    users = users_class()
+    byte_data = binascii.unhexlify(hex_string.replace(' ', ''))
+    users = Users()
     users.ParseFromString(byte_data)
     return users
 
 def encrypt_aes(hex_data, key, iv):
-    key_bytes = key.encode()[:16]
-    iv_bytes = iv.encode()[:16]
-    cipher = AES.new(key_bytes, AES.MODE_CBC, iv_bytes)
+    key = key.encode()[:16]
+    iv = iv.encode()[:16]
+    cipher = AES.new(key, AES.MODE_CBC, iv)
     padded_data = pad(bytes.fromhex(hex_data), AES.block_size)
     encrypted_data = cipher.encrypt(padded_data)
     return binascii.hexlify(encrypted_data).decode()
@@ -152,7 +78,7 @@ def main():
     encrypted_hex = encrypt_aes(hex_data, key, iv)
 
     headers = {
-        'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 13; ASUS_Z01QD Build/PI)',
+        'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)',
         'Connection': 'Keep-Alive',
         'Expect': '100-continue',
         'Authorization': f'Bearer {token}',
@@ -222,7 +148,7 @@ def main():
                 'cspoint': admin.cspoint
             })
 
-    result['credit'] = '@Ujjaiwal'
+    result['credit'] = '@ADITYASHARMA766208'
     return jsonify(result)
 
 if __name__ == "__main__":
