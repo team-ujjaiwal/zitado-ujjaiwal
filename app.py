@@ -82,6 +82,12 @@ def main():
     api = jwt_info.get('serverUrl', '')
     token = jwt_info.get('token', '')
     
+    # Check if token already contains "Bearer " and remove our prefix if it does
+    if token.startswith('Bearer '):
+        auth_header = token  # Use as-is
+    else:
+        auth_header = f'Bearer {token}'  # Add prefix if missing
+    
     if not api or not token:
         return jsonify({"error": "Invalid JWT response - missing serverUrl or token"}), 500
 
@@ -93,7 +99,7 @@ def main():
     headers = {
         'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)',
         'Connection': 'Keep-Alive',
-        'Authorization': f'Bearer {token}',
+        'Authorization': auth_header,  # Use the corrected auth header
         'X-Unity-Version': '2018.4.11f1',
         'X-GA': 'v1 1',
         'ReleaseVersion': 'OB50',
@@ -103,8 +109,8 @@ def main():
 
     try:
         print(f"API Endpoint: {api}/GetPlayerPersonalShow")
-        print(f"Token: {token[:20]}...")
-        print(f"Encrypted data: {encrypted_hex[:50]}...")
+        print(f"Auth Header: {auth_header[:50]}...")
+        print(f"Encrypted data length: {len(encrypted_hex)}")
         
         # Convert hex to bytes for the request body
         encrypted_bytes = bytes.fromhex(encrypted_hex)
@@ -120,11 +126,30 @@ def main():
         print(f"Response Headers: {dict(response.headers)}")
         
         if response.status_code == 401:
-            return jsonify({
-                "error": "Authentication failed (401 Unauthorized)",
-                "details": "Invalid JWT token or server rejected the request",
-                "server": api
-            }), 401
+            # Try alternative server if available
+            if "ind.freefiremobile.com" in api:
+                alt_api = api.replace("ind.freefiremobile.com", "clientbp.ggblueshark.com")
+                print(f"Trying alternative server: {alt_api}")
+                try:
+                    response = requests.post(
+                        f"{alt_api}/GetPlayerPersonalShow", 
+                        headers=headers, 
+                        data=encrypted_bytes,
+                        timeout=15
+                    )
+                    response.raise_for_status()
+                except:
+                    return jsonify({
+                        "error": "Authentication failed (401 Unauthorized) on both servers",
+                        "details": "Server rejected the JWT token",
+                        "servers_tried": [api, alt_api]
+                    }), 401
+            else:
+                return jsonify({
+                    "error": "Authentication failed (401 Unauthorized)",
+                    "details": "Server rejected the JWT token",
+                    "server": api
+                }), 401
             
         response.raise_for_status()
         
@@ -201,7 +226,7 @@ def main():
     
     return jsonify(result)
 
-@app.route('/test_jwt', methods=['GET'])
+@app.route('/jwt', methods=['GET'])
 def test_jwt():
     region = request.args.get('region', 'IND')
     jwt_info = get_jwt_token(region)
