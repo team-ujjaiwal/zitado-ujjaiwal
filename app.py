@@ -7,6 +7,8 @@ import random
 import uid_generator_pb2
 from zitado_ujjaiwal_pb2 import Users
 from secret import key, iv
+import json
+import time
 
 app = Flask(__name__)
 
@@ -51,9 +53,13 @@ def get_jwt_token(region):
     try:
         response = requests.get(jwt_url, timeout=10)
         if response.status_code != 200:
+            print(f"JWT API returned status: {response.status_code}")
             return None
-        return response.json()
-    except:
+        data = response.json()
+        print(f"JWT Response: {data}")
+        return data
+    except Exception as e:
+        print(f"JWT Token Error: {str(e)}")
         return None
 
 @app.route('/info', methods=['GET'])
@@ -71,14 +77,15 @@ def main():
 
     jwt_info = get_jwt_token(region)
     if not jwt_info or 'token' not in jwt_info:
-        return jsonify({"error": "Failed to fetch JWT token"}), 500
+        return jsonify({"error": "Failed to fetch valid JWT token"}), 500
 
     api = jwt_info.get('serverUrl', '')
     token = jwt_info.get('token', '')
     
     if not api or not token:
-        return jsonify({"error": "Invalid JWT response"}), 500
+        return jsonify({"error": "Invalid JWT response - missing serverUrl or token"}), 500
 
+    # Create protobuf and encrypt
     protobuf_data = create_protobuf(ujjaiwal_, 1)
     hex_data = protobuf_to_hex(protobuf_data)
     encrypted_hex = encrypt_aes(hex_data, key, iv)
@@ -86,47 +93,60 @@ def main():
     headers = {
         'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)',
         'Connection': 'Keep-Alive',
-        'Expect': '100-continue',
         'Authorization': f'Bearer {token}',
         'X-Unity-Version': '2018.4.11f1',
         'X-GA': 'v1 1',
         'ReleaseVersion': 'OB50',
         'Content-Type': 'application/x-www-form-urlencoded',
+        'Accept-Encoding': 'gzip',
     }
 
     try:
-        # Debug: Print the API endpoint and headers
         print(f"API Endpoint: {api}/GetPlayerPersonalShow")
-        print(f"Headers: {headers}")
-        print(f"Encrypted data length: {len(encrypted_hex)}")
+        print(f"Token: {token[:20]}...")
+        print(f"Encrypted data: {encrypted_hex[:50]}...")
+        
+        # Convert hex to bytes for the request body
+        encrypted_bytes = bytes.fromhex(encrypted_hex)
         
         response = requests.post(
             f"{api}/GetPlayerPersonalShow", 
             headers=headers, 
-            data=bytes.fromhex(encrypted_hex),
+            data=encrypted_bytes,
             timeout=15
         )
-        response.raise_for_status()
         
-        # Debug: Print response status and first 100 chars
         print(f"Response Status: {response.status_code}")
-        print(f"Response Preview: {response.content[:100]}...")
+        print(f"Response Headers: {dict(response.headers)}")
+        
+        if response.status_code == 401:
+            return jsonify({
+                "error": "Authentication failed (401 Unauthorized)",
+                "details": "Invalid JWT token or server rejected the request",
+                "server": api
+            }), 401
+            
+        response.raise_for_status()
         
     except requests.exceptions.Timeout:
         return jsonify({"error": "Request timeout to game server"}), 504
     except requests.exceptions.ConnectionError:
         return jsonify({"error": "Connection error to game server"}), 502
     except requests.exceptions.HTTPError as e:
-        return jsonify({"error": f"HTTP error from game server: {str(e)}"}), 502
-    except requests.RequestException as e:
-        return jsonify({"error": f"Failed to contact game server: {str(e)}"}), 502
+        return jsonify({
+            "error": f"HTTP error from game server: {str(e)}",
+            "server": api,
+            "status_code": response.status_code if 'response' in locals() else 'unknown'
+        }), 502
+    except Exception as e:
+        return jsonify({"error": f"Unexpected error: {str(e)}"}), 500
 
     hex_response = response.content.hex()
 
     try:
         users = decode_hex(hex_response)
     except Exception as e:
-        return jsonify({"error": f"Failed to parse Protobuf: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to parse Protobuf response: {str(e)}"}), 500
 
     result = {}
 
@@ -176,11 +196,16 @@ def main():
                 'cspoint': admin.cspoint
             })
 
-    # Add overall primelevel from Users message
     result['primelevel'] = users.primelevel
-
     result['credit'] = '@Ujjaiwal'
+    
     return jsonify(result)
+
+@app.route('/test_jwt', methods=['GET'])
+def test_jwt():
+    region = request.args.get('region', 'IND')
+    jwt_info = get_jwt_token(region)
+    return jsonify(jwt_info if jwt_info else {"error": "Failed to get JWT"})
 
 @app.route('/health', methods=['GET'])
 def health_check():
