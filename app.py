@@ -62,6 +62,17 @@ def get_jwt_token(region):
         print(f"JWT Token Error: {str(e)}")
         return None
 
+def calculate_prime_level(level, exp, badges, likes):
+    """Calculate prime level based on user stats if server doesn't provide it"""
+    if level >= 70:
+        return 3
+    elif level >= 50:
+        return 2
+    elif level >= 30:
+        return 1
+    else:
+        return 0
+
 @app.route('/info', methods=['GET'])
 def main():
     uid = request.args.get('uid')
@@ -82,11 +93,10 @@ def main():
     api = jwt_info.get('serverUrl', '')
     token = jwt_info.get('token', '')
     
-    # Check if token already contains "Bearer " and remove our prefix if it does
     if token.startswith('Bearer '):
-        auth_header = token  # Use as-is
+        auth_header = token
     else:
-        auth_header = f'Bearer {token}'  # Add prefix if missing
+        auth_header = f'Bearer {token}'
     
     if not api or not token:
         return jsonify({"error": "Invalid JWT response - missing serverUrl or token"}), 500
@@ -110,9 +120,7 @@ def main():
     try:
         print(f"API Endpoint: {api}/GetPlayerPersonalShow")
         print(f"Auth Header: {auth_header[:50]}...")
-        print(f"Encrypted data length: {len(encrypted_hex)}")
         
-        # Convert hex to bytes for the request body
         encrypted_bytes = bytes.fromhex(encrypted_hex)
         
         response = requests.post(
@@ -123,7 +131,6 @@ def main():
         )
         
         print(f"Response Status: {response.status_code}")
-        print(f"Response Headers: {dict(response.headers)}")
         
         if response.status_code == 401:
             return jsonify({
@@ -152,16 +159,10 @@ def main():
     try:
         users = decode_hex(hex_response)
         
-        # Debug: Print all available fields
-        print(f"Users object has primelevel: {hasattr(users, 'primelevel')}")
+        # Debug prime level information
+        print(f"Users primelevel field exists: {hasattr(users, 'primelevel')}")
         if hasattr(users, 'primelevel'):
-            print(f"Overall primelevel: {users.primelevel}")
-        
-        if users.basicinfo:
-            for i, user_info in enumerate(users.basicinfo):
-                print(f"User {i} has primelevel: {hasattr(user_info, 'primelevel')}")
-                if hasattr(user_info, 'primelevel'):
-                    print(f"User {i} primelevel value: {user_info.primelevel}")
+            print(f"Users primelevel value: {users.primelevel}")
         
     except Exception as e:
         return jsonify({"error": f"Failed to parse Protobuf response: {str(e)}"}), 500
@@ -171,6 +172,21 @@ def main():
     if users.basicinfo:
         result['basicinfo'] = []
         for user_info in users.basicinfo:
+            # Calculate prime level if server doesn't provide it
+            server_prime_level = getattr(user_info, 'primelevel', 0)
+            
+            # If server provides 0, calculate our own prime level
+            if server_prime_level == 0:
+                calculated_prime = calculate_prime_level(
+                    user_info.level,
+                    user_info.Exp,
+                    user_info.BadgeCount,
+                    user_info.likes
+                )
+                final_prime_level = calculated_prime
+            else:
+                final_prime_level = server_prime_level
+                
             user_data = {
                 'username': user_info.username,
                 'region': user_info.region,
@@ -188,13 +204,9 @@ def main():
                 'brrankpoint': user_info.brrankpoint,
                 'createat': user_info.createat,
                 'OB': user_info.OB,
+                'primelevel': final_prime_level,  # Use calculated prime level
+                'primelevel_source': 'calculated' if server_prime_level == 0 else 'server'
             }
-            
-            # Add primelevel only if it exists and has a value
-            if hasattr(user_info, 'primelevel') and user_info.primelevel != 0:
-                user_data['primelevel'] = user_info.primelevel
-            elif hasattr(user_info, 'primelevel'):
-                user_data['primelevel'] = user_info.primelevel
             
             result['basicinfo'].append(user_data)
 
@@ -221,11 +233,16 @@ def main():
                 'cspoint': admin.cspoint
             })
 
-    # Add overall primelevel only if it exists and has a value
-    if hasattr(users, 'primelevel') and users.primelevel != 0:
-        result['primelevel'] = users.primelevel
-    elif hasattr(users, 'primelevel'):
-        result['primelevel'] = users.primelevel
+    # Handle overall prime level
+    server_overall_prime = getattr(users, 'primelevel', 0)
+    if server_overall_prime == 0 and users.basicinfo:
+        # Calculate overall prime level from user data
+        highest_prime = max([user.get('primelevel', 0) for user in result.get('basicinfo', [])])
+        result['primelevel'] = highest_prime
+        result['primelevel_source'] = 'calculated'
+    else:
+        result['primelevel'] = server_overall_prime
+        result['primelevel_source'] = 'server'
 
     result['credit'] = '@Ujjaiwal'
     
