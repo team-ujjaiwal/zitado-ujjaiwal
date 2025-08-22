@@ -99,7 +99,7 @@ def main():
     headers = {
         'User-Agent': 'Dalvik/2.1.0 (Linux; U; Android 9; ASUS_Z01QD Build/PI)',
         'Connection': 'Keep-Alive',
-        'Authorization': auth_header,  # Use the corrected auth header
+        'Authorization': auth_header,
         'X-Unity-Version': '2018.4.11f1',
         'X-GA': 'v1 1',
         'ReleaseVersion': 'OB50',
@@ -126,30 +126,11 @@ def main():
         print(f"Response Headers: {dict(response.headers)}")
         
         if response.status_code == 401:
-            # Try alternative server if available
-            if "ind.freefiremobile.com" in api:
-                alt_api = api.replace("ind.freefiremobile.com", "clientbp.ggblueshark.com")
-                print(f"Trying alternative server: {alt_api}")
-                try:
-                    response = requests.post(
-                        f"{alt_api}/GetPlayerPersonalShow", 
-                        headers=headers, 
-                        data=encrypted_bytes,
-                        timeout=15
-                    )
-                    response.raise_for_status()
-                except:
-                    return jsonify({
-                        "error": "Authentication failed (401 Unauthorized) on both servers",
-                        "details": "Server rejected the JWT token",
-                        "servers_tried": [api, alt_api]
-                    }), 401
-            else:
-                return jsonify({
-                    "error": "Authentication failed (401 Unauthorized)",
-                    "details": "Server rejected the JWT token",
-                    "server": api
-                }), 401
+            return jsonify({
+                "error": "Authentication failed (401 Unauthorized)",
+                "details": "Server rejected the JWT token",
+                "server": api
+            }), 401
             
         response.raise_for_status()
         
@@ -170,6 +151,18 @@ def main():
 
     try:
         users = decode_hex(hex_response)
+        
+        # Debug: Print all available fields
+        print(f"Users object has primelevel: {hasattr(users, 'primelevel')}")
+        if hasattr(users, 'primelevel'):
+            print(f"Overall primelevel: {users.primelevel}")
+        
+        if users.basicinfo:
+            for i, user_info in enumerate(users.basicinfo):
+                print(f"User {i} has primelevel: {hasattr(user_info, 'primelevel')}")
+                if hasattr(user_info, 'primelevel'):
+                    print(f"User {i} primelevel value: {user_info.primelevel}")
+        
     except Exception as e:
         return jsonify({"error": f"Failed to parse Protobuf response: {str(e)}"}), 500
 
@@ -178,7 +171,7 @@ def main():
     if users.basicinfo:
         result['basicinfo'] = []
         for user_info in users.basicinfo:
-            result['basicinfo'].append({
+            user_data = {
                 'username': user_info.username,
                 'region': user_info.region,
                 'level': user_info.level,
@@ -195,8 +188,15 @@ def main():
                 'brrankpoint': user_info.brrankpoint,
                 'createat': user_info.createat,
                 'OB': user_info.OB,
-                'primelevel': user_info.primelevel
-            })
+            }
+            
+            # Add primelevel only if it exists and has a value
+            if hasattr(user_info, 'primelevel') and user_info.primelevel != 0:
+                user_data['primelevel'] = user_info.primelevel
+            elif hasattr(user_info, 'primelevel'):
+                user_data['primelevel'] = user_info.primelevel
+            
+            result['basicinfo'].append(user_data)
 
     if users.claninfo:
         result['claninfo'] = []
@@ -221,12 +221,17 @@ def main():
                 'cspoint': admin.cspoint
             })
 
-    result['primelevel'] = users.primelevel
+    # Add overall primelevel only if it exists and has a value
+    if hasattr(users, 'primelevel') and users.primelevel != 0:
+        result['primelevel'] = users.primelevel
+    elif hasattr(users, 'primelevel'):
+        result['primelevel'] = users.primelevel
+
     result['credit'] = '@Ujjaiwal'
     
     return jsonify(result)
 
-@app.route('/jwt', methods=['GET'])
+@app.route('/test_jwt', methods=['GET'])
 def test_jwt():
     region = request.args.get('region', 'IND')
     jwt_info = get_jwt_token(region)
