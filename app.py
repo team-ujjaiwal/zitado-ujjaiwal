@@ -48,10 +48,13 @@ def get_credentials(region):
 def get_jwt_token(region):
     uid, password = get_credentials(region)
     jwt_url = f"https://garenafreefirejwttokengeneratorclie.vercel.app/token?uid={uid}&password={password}"
-    response = requests.get(jwt_url)
-    if response.status_code != 200:
+    try:
+        response = requests.get(jwt_url, timeout=10)
+        if response.status_code != 200:
+            return None
+        return response.json()
+    except:
         return None
-    return response.json()
 
 @app.route('/info', methods=['GET'])
 def main():
@@ -70,8 +73,11 @@ def main():
     if not jwt_info or 'token' not in jwt_info:
         return jsonify({"error": "Failed to fetch JWT token"}), 500
 
-    api = jwt_info['serverUrl']
-    token = jwt_info['token']
+    api = jwt_info.get('serverUrl', '')
+    token = jwt_info.get('token', '')
+    
+    if not api or not token:
+        return jsonify({"error": "Invalid JWT response"}), 500
 
     protobuf_data = create_protobuf(ujjaiwal_, 1)
     hex_data = protobuf_to_hex(protobuf_data)
@@ -89,10 +95,31 @@ def main():
     }
 
     try:
-        response = requests.post(f"{api}/GetPlayerPersonalShow", headers=headers, data=bytes.fromhex(encrypted_hex))
+        # Debug: Print the API endpoint and headers
+        print(f"API Endpoint: {api}/GetPlayerPersonalShow")
+        print(f"Headers: {headers}")
+        print(f"Encrypted data length: {len(encrypted_hex)}")
+        
+        response = requests.post(
+            f"{api}/GetPlayerPersonalShow", 
+            headers=headers, 
+            data=bytes.fromhex(encrypted_hex),
+            timeout=15
+        )
         response.raise_for_status()
-    except requests.RequestException:
-        return jsonify({"error": "Failed to contact game server"}), 502
+        
+        # Debug: Print response status and first 100 chars
+        print(f"Response Status: {response.status_code}")
+        print(f"Response Preview: {response.content[:100]}...")
+        
+    except requests.exceptions.Timeout:
+        return jsonify({"error": "Request timeout to game server"}), 504
+    except requests.exceptions.ConnectionError:
+        return jsonify({"error": "Connection error to game server"}), 502
+    except requests.exceptions.HTTPError as e:
+        return jsonify({"error": f"HTTP error from game server: {str(e)}"}), 502
+    except requests.RequestException as e:
+        return jsonify({"error": f"Failed to contact game server: {str(e)}"}), 502
 
     hex_response = response.content.hex()
 
@@ -111,7 +138,7 @@ def main():
                 'region': user_info.region,
                 'level': user_info.level,
                 'Exp': user_info.Exp,
-                'bio': users.bioinfo[0].bio if users.bioinfo else None,
+                'bio': users.bioinfo[0].bio if users.bioinfo and len(users.bioinfo) > 0 else None,
                 'banner': user_info.banner,
                 'avatar': user_info.avatar,
                 'brrankscore': user_info.brrankscore,
@@ -123,7 +150,7 @@ def main():
                 'brrankpoint': user_info.brrankpoint,
                 'createat': user_info.createat,
                 'OB': user_info.OB,
-                'primelevel': user_info.primelevel  # Added primelevel field
+                'primelevel': user_info.primelevel
             })
 
     if users.claninfo:
@@ -155,5 +182,9 @@ def main():
     result['credit'] = '@Ujjaiwal'
     return jsonify(result)
 
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "healthy", "message": "Server is running"})
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
