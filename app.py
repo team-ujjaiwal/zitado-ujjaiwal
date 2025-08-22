@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify
 import requests
 import random
 import uid_generator_pb2
-from zitado_pb2 import Users
+from zitado_ujjaiwal_pb2 import Users
 from secret import key, iv
 
 app = Flask(__name__)
@@ -13,10 +13,10 @@ app = Flask(__name__)
 def hex_to_bytes(hex_string):
     return bytes.fromhex(hex_string)
 
-def create_protobuf(akiru_, aditya):
+def create_protobuf(ujjaiwal_, garena):
     message = uid_generator_pb2.uid_generator()
-    message.akiru_ = akiru_
-    message.aditya = aditya
+    message.ujjaiwal_ = ujjaiwal_
+    message.garena = garena
     return message.SerializeToString()
 
 def protobuf_to_hex(protobuf_data):
@@ -47,13 +47,13 @@ def get_credentials(region):
 
 def get_jwt_token(region):
     uid, password = get_credentials(region)
-    jwt_url = f"https://jwt-aditya.vercel.app/token?uid={uid}&password={password}"
+    jwt_url = f"https://garenafreefirejwttokengeneratorclie.vercel.app/token?uid={uid}&password={password}"
     response = requests.get(jwt_url)
     if response.status_code != 200:
         return None
     return response.json()
 
-@app.route('/player-info', methods=['GET'])
+@app.route('/info', methods=['GET'])
 def main():
     uid = request.args.get('uid')
     region = request.args.get('region')
@@ -62,7 +62,7 @@ def main():
         return jsonify({"error": "Missing 'uid' or 'region' query parameter"}), 400
 
     try:
-        saturn_ = int(uid)
+        ujjaiwal_ = int(uid)
     except ValueError:
         return jsonify({"error": "Invalid UID"}), 400
 
@@ -73,7 +73,7 @@ def main():
     api = jwt_info['serverUrl']
     token = jwt_info['token']
 
-    protobuf_data = create_protobuf(saturn_, 1)
+    protobuf_data = create_protobuf(ujjaiwal_, 1)
     hex_data = protobuf_to_hex(protobuf_data)
     encrypted_hex = encrypt_aes(hex_data, key, iv)
 
@@ -84,7 +84,7 @@ def main():
         'Authorization': f'Bearer {token}',
         'X-Unity-Version': '2018.4.11f1',
         'X-GA': 'v1 1',
-        'ReleaseVersion': 'OB49',
+        'ReleaseVersion': 'OB50',
         'Content-Type': 'application/x-www-form-urlencoded',
     }
 
@@ -122,7 +122,8 @@ def main():
                 'csrankscore': user_info.csrankscore,
                 'brrankpoint': user_info.brrankpoint,
                 'createat': user_info.createat,
-                'OB': user_info.OB
+                'OB': user_info.OB,
+                'primelevel': user_info.primelevel  # Added primelevel field
             })
 
     if users.claninfo:
@@ -147,6 +148,9 @@ def main():
                 'lastlogin': admin.lastlogin,
                 'cspoint': admin.cspoint
             })
+
+    # Add overall primelevel from Users message
+    result['primelevel'] = users.primelevel
 
     result['credit'] = '@Ujjaiwal'
     return jsonify(result)
